@@ -1,0 +1,4 @@
+SELECT
+CONVERT(nchar, GETDATE(), 131)
+,
+CONVERT(nchar, GETDATE(), 130)

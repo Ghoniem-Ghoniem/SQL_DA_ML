@@ -1,0 +1,1 @@
+select vwmms_mr.MR_MRTOTVAL,ROW_NUMBER()over (orderby mr_code),RANK()over (orderby mr_code)from vwmms_mr

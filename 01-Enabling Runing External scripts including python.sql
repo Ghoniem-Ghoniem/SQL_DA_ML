@@ -1,3 +1,12 @@
+/*
+1-	Installing SQL server 2017
+•	Enable R and Python when installing sqlserver
+•	Start Launchpad service
+•	Enable external scripts
+•	Restart server and re-enable Launchpad service
+•	Create first Python solution
+
+*/
 /*Enabling steps
 
 */
