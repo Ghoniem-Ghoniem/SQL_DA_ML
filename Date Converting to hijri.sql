@@ -58,3 +58,8 @@ union
 select GETDATE()-325,format(GETDATE()-325,'dd/MMM/yyyy')
 
 
+--Getting the date elements by functions
+select EOMONTH(GETDATE());
+select Month(GETDATE());
+select day(GETDATE());
+select year(GETDATE());

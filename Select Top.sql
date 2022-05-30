@@ -7,3 +7,6 @@ select top (@nCount)*from account
 declare @nCount int= 10
 select top (@nCount)percent * from account
 
+--Random sampling selection
+select top 10 percent * from Words_Metadata order by newid()
+
