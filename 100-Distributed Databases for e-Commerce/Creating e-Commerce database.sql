@@ -202,8 +202,32 @@ sp_itemgroup_create '04','Toys'
 sp_itemgroup_create '05', 'Clothes'
 
 
---What is full text search
+--Tracking on the database level
+use LOGDB
+go
+alter table LOGDB..txnlog DROP COLUMN Action_Details
+GO
+alter table LOGDB..txnlog add Action_Details varchar(4000)
+go
 use ECOMMERCEDB
 GO
+
+CREATE TRIGGER Track_Db_Changes_TRG ON DATABASE 
+	FOR CREATE_TABLE , DROP_TABLE, ALTER_TABLE 
+AS 
+
+BEGIN
+	DECLARE @data XML = EVENTDATA()
+	DECLARE @cmd NVARCHAR(4000) = @data.value('(/EVENT_INSTANCE/TSQLCommand/CommandText)[1]', 'NVARCHAR(4000)')
+   	insert into LOGDB..TXNLOG (transaction_type,ActionName,Action_Details,Action_By,action_date) VALUES ('SYSTEM','DDL',@cmd,SESSION_USER,GETDATE())
+END
+GO
+--DROP TRIGGER Track_Db_Changes_TRG
+
+
+SELECT * FROM items
+--ALTER TABLE ITEMS DROP COLUMN UOM 
+ALTER TABLE ITEMS ADD UOM VARCHAR(10) NOT NULL DEFAULT 'PCS'
+SELECT * FROM LOGDB..TXNLOG --Notice that we have logged the executed sql statement
 
 
