@@ -63,3 +63,19 @@ OutputDataSet = df
     , @input_data_1 = N'select QuestionID,[QuestionArabicName] from QuestionsTypes;'
 
 WITH RESULT SETS((measurement varchar(20),ResultValue FLOAT))
+
+
+
+/*Prediction using pickle saved model FOR THE APARTMENT SALES*/
+EXECUTE sp_execute_external_script @language = N'Python'
+    , @script = N'
+import pickle
+import pandas as pd 
+pkl_filename = "d:\MLModels\pickle_model.pkl"
+with open(pkl_filename, ''rb'') as file:
+    pickle_model = pickle.load(file)
+    
+Ypredict = pickle_model.predict([[2010,200,3]])
+df = pd.DataFrame({''VALUES'': Ypredict[:, 0]})
+OutputDataSet = df'
+WITH RESULT SETS((ResultValue FLOAT))

@@ -231,3 +231,5 @@ ALTER TABLE ITEMS ADD UOM VARCHAR(10) NOT NULL DEFAULT 'PCS'
 SELECT * FROM LOGDB..TXNLOG --Notice that we have logged the executed sql statement
 
 
+
+
