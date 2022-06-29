@@ -116,6 +116,8 @@ set Item_Details = 'Android tablets 10 Inc',  ProductionDate= '1 Jan 2021'
 where
 code = '02'
 
+UPDATE itemgroup SET UnitOfMeasure ='KG' WHERE CODE = '11'
+
 
 select * from itemgroup
 
@@ -161,34 +163,70 @@ use ECOMM
 go
 
 -- Select All data
-Select * from itemgroup
+Select * from itemgroup where code = '01'
 
+-- Select Partial data columns, Why?
+Select id,code,english_name from itemgroup
+
+-- Select Partial Rowns by count, Why?
+select * from itemgroup
 Select top 5 * from itemgroup
+-- Select Partial Rowns by percentage, Why?
 Select top 20 percent * from itemgroup
 
 -- Numbers search
-select * from itemgroup where id >4
+select * from itemgroup where id > 4
 select * from itemgroup where id <4
 select * from itemgroup where id =4
 
---Text search
-UPDATE itemgroup SET UnitOfMeasure ='KG' WHERE CODE = '11'
+select * from itemgroup where id >4 and id<7
+
+select * from itemgroup where id in (1,3,5)
+select * from itemgroup where id = 1 or id = 3 or id = 5
+
+
+SELECT ROUND(10.567,2)
+SELECT ABS(-10.567)
+SELECT CEILING(10.567)
+SELECT FLOOR(10.567)
+SELECT SQRT(25)
+SELECT SQUARE(5)
+SELECT SIGN(10.2)
+SELECT SIGN(-10.2)
+select SQUARE(id) from itemgroup
+
+
+--Text search with equality
+
 select * from itemgroup where UnitOfMeasure ='PCS'
 select * from itemgroup where UnitOfMeasure ='KG'
-
 select * from itemgroup where UnitOfMeasure <> 'KG'
 
+--Text search with like
 select * from itemgroup where Item_Details like 'And%'
 select * from itemgroup where Item_Details like '%Phones'
 
+--Vowels search
+select * from itemgroup where soundex(english_name) = soundex('Tblt') --tablet tublit tublite
+select * from itemgroup where soundex(english_name) = soundex('Tublt')
+select * from itemgroup where soundex(english_name) = soundex('Tublite')
+
+
+
 --searching date fields
 select * from itemgroup where ProductionDate> '1 Jan 2022'
+select * from itemgroup where ProductionDate< '1 Jan 2022'
+select * from itemgroup where ProductionDate= '16 Mar 2020'
+
+select * from itemgroup where month (ProductionDate)=3
+select * from itemgroup where month (ProductionDate)>3
+select * from itemgroup where year (ProductionDate)=2020
+select * from itemgroup where year (ProductionDate)=2022
+select * from itemgroup where year (ProductionDate)=2022 and month (ProductionDate) =3
 
 
---Vowels
-select * from itemgroup where soundex(english_name) = soundex('Tblt')
-select * from itemgroup where soundex(english_name) = soundex('Tublt')
-select * from itemgroup where soundex(english_name) = soundex('Tublit')
+
+
 
 
 --Ordering selection
@@ -210,17 +248,6 @@ select * from itemgroup order by UnitOfMeasure desc, english_name asc
 
 
 
-SELECT ROUND(10.567,2)
-SELECT ABS(-10.567)
-SELECT CEILING(10.567)
-SELECT FLOOR(10.567)
-SELECT SQRT(25)
-SELECT SQUARE(5)
-SELECT SIGN(10.2)
-SELECT SIGN(-10.2)
 
-SELECT SUM()
-SELECT MIN()
-SELECT MAX()
-SELECT AVG()
+
 
