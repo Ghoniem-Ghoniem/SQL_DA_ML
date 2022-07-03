@@ -214,11 +214,11 @@ select * from itemgroup where soundex(english_name) = soundex('Tublite')
 
 
 --searching date fields
-select * from itemgroup where ProductionDate> '1 Jan 2022'
-select * from itemgroup where ProductionDate< '1 Jan 2022'
+select * from itemgroup where ProductionDate > '1 Jan 2022'
+select * from itemgroup where ProductionDate < '1 Jan 2022'
 select * from itemgroup where ProductionDate= '16 Mar 2020'
 
-select * from itemgroup where month (ProductionDate)=3
+select * from itemgroup where month (ProductionDate)=3 
 select * from itemgroup where month (ProductionDate)>3
 select * from itemgroup where year (ProductionDate)=2020
 select * from itemgroup where year (ProductionDate)=2022
@@ -230,17 +230,14 @@ select * from itemgroup where year (ProductionDate)=2022 and month (ProductionDa
 
 
 --Ordering selection
-
+select * from itemgroup order by id desc
 select * from itemgroup order by code
 select * from itemgroup order by ProductionDate
 select * from itemgroup order by ProductionDate desc
 select * from itemgroup order by UnitOfMeasure desc, english_name asc
 
 
-
-
-
-
+	
 
 
 
