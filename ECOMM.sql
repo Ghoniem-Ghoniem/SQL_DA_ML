@@ -420,6 +420,22 @@ values
 ('ITEM12','TXN-0003-2022',1,12,25,'12 Dec 2016'),
 ('ITEM12','TXN-0004-2022',-1,3,25,'13 Jan 2020')
 
+insert into itemsbalance 
+(item_code,transactioncode,transactiontype,quantity,price,txndate)
+values 
+('ITEM13','TXN-0005-2022',1,120,25,'12 Dec 2017'),
+('ITEM13','TXN-0006-2022',-1,30,25,'13 Jan 2021')
+
+
+Select * from vwitembalance
+
+
+--How to get the stock movements over the time:
+--using the table, which is hard to understand and track
+Select * from vwitembalance where year (txndate) =2022
+Select * from vwitembalance where year (txndate) =2020
+
+--With pivot table
 SELECT *
 FROM (
   SELECT
@@ -438,15 +454,16 @@ IN
 )	
 ) PivotTable
 
+drop view vwItemsHistory 
 
-create view vwItemsHistory 
+create view vwItemsMovement
 as
 SELECT *
 FROM (
   SELECT
 item_code,--will be the row
 Year(txndate) [Year],--will be the column
-quantity*transactiontype as total_qty --will be the aggregated content
+isnull(quantity*transactiontype,0) as total_qty --will be the aggregated content
 FROM itemsbalance
 
 ) TableDate
@@ -460,7 +477,75 @@ IN
 ) PivotTable
 go
 
-select * from vwItemsHistory
+select * from vwItemsMovement 
+
+
+
 
 --14-Functions
+select * FROM itemsbalance
 
+--Building scaler function to get item balance in specific date?
+drop function dbo.GetItemBalance 
+go
+CREATE FUNCTION  
+dbo.GetItemBalance 
+(@ItemCode varchar(20), @TillDate datetime)
+RETURNS int
+ with RETURNS NULL ON NULL INPUT 
+ AS
+begin
+	declare @ItemBalance int;
+
+	set @ItemBalance = (SELECT sum(quantity*transactiontype) FROM itemsbalance WHERE item_code = @ItemCode and txndate<=@TillDate);
+	RETURN (@ItemBalance);
+END;
+
+select dbo.GetItemBalance('ITEM02',getdate())
+select dbo.GetItemBalance('ITEM12','1-Jan-2020')
+select dbo.GetItemBalance('ITEM12','1-Jan-2022')
+
+select items.*,dbo.GetItemBalance(item_code,getdate()) as item_balance from items
+
+
+
+
+
+
+--Building Tabular function
+drop function dbo.GetItemHist 
+go
+alter FUNCTION  dbo.GetItemHist 
+(@ItemCode varchar(50), @TillDate datetime)
+RETURNS table
+RETURN (SELECT vwitembalance.* from vwitembalance WHERE item_code = @ItemCode and txndate<=@TillDate);
+
+select * from dbo.GetItemHist('ITEM12','1-Jan-2022')
+
+
+
+
+drop function dbo.GetItemStatus 
+go
+
+alter FUNCTION  dbo.GetItemStatus 
+(@ItemCode varchar(50), @TillDate datetime)
+RETURNS @ItemStatus table (StatusCode varchar(20), StatusValue varchar(20))
+as
+begin
+	declare @averageprice int;
+	declare @Maxprice int;
+	declare @Minprice int;
+	set @averageprice= (select Avg(price) from vwitembalance where item_code = @ItemCode and transactiontype =1);
+	set @Maxprice= (select Max(price) from vwitembalance where item_code = @ItemCode and transactiontype =1);
+	set @Minprice= (select Min(price) from vwitembalance where item_code = @ItemCode and transactiontype =1);
+	insert into @ItemStatus  
+		values
+		('Average Price',@averageprice),
+		('Max Price',@Maxprice),
+		('Min Price',@Minprice),
+		('Balance',dbo.GetItemBalance(@ItemCode,getdate()))
+	return;
+end
+
+select * from dbo.GetItemStatus ('ITEM12','1-Jan-2022')
