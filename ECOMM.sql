@@ -311,9 +311,9 @@ itemgroup inner join items
 on itemgroup.code = items.group_id
 
 drop view vwItems 
+go
 create view vwItems as 
 select itemgroup.english_name as groupname, items.*
-
 from 
 itemgroup inner join items 
 on itemgroup.code = items.group_id 
@@ -515,8 +515,8 @@ select items.*,dbo.GetItemBalance(item_code,getdate()) as item_balance from item
 --Building Tabular function
 drop function dbo.GetItemHist 
 go
-alter FUNCTION  dbo.GetItemHist 
-(@ItemCode varchar(50), @TillDate datetime)
+create FUNCTION  dbo.GetItemHist 
+(@ItemCode varchar(20), @TillDate datetime)
 RETURNS table
 RETURN (SELECT vwitembalance.* from vwitembalance WHERE item_code = @ItemCode and txndate<=@TillDate);
 
@@ -528,7 +528,7 @@ select * from dbo.GetItemHist('ITEM12','1-Jan-2022')
 drop function dbo.GetItemStatus 
 go
 
-alter FUNCTION  dbo.GetItemStatus 
+create FUNCTION  dbo.GetItemStatus 
 (@ItemCode varchar(50), @TillDate datetime)
 RETURNS @ItemStatus table (StatusCode varchar(20), StatusValue varchar(20))
 as
@@ -548,4 +548,186 @@ begin
 	return;
 end
 
+
+insert into itemsbalance 
+(item_code,transactioncode,transactiontype,quantity,price,txndate)
+values 
+('ITEM12','TXN-0044-2022',1,3,18,'13 Jan 2020'),
+('ITEM12','TXN-0045-2022',1,3,13,'13 Jan 2021')
+
+
 select * from dbo.GetItemStatus ('ITEM12','1-Jan-2022')
+
+
+
+
+
+
+--Creating procedures with single statement
+drop procedure [dbo].[CreateItem]
+
+Create PROCEDURE [dbo].[CreateItem] @group varchar(20),@Code varchar(20),@Description varchar(20)
+as
+	insert into items(group_id,item_code,item_name,item_desc) 
+	values(@group,@Code,@Description, @Description)
+;
+--delete from items where item_code='100100'
+execute [dbo].[CreateItem] '02','100100','Dell Mouse'
+select * from items
+select * from vwitembalance
+
+--using T-SQL
+alter PROCEDURE [dbo].[CreateItem] @group varchar(20),@Code varchar(20),@Description varchar(20)
+as
+	if @group = '100'
+		raiserror (N'Group is locked now',10,1)
+	else
+		insert into items(group_id,item_code,item_name,item_desc) values(@group,@Code,@Description, @Description)
+;
+
+execute [dbo].[CreateItem] '100','100100','Dell Mouse'
+execute [dbo].[CreateItem] '02','100100','Dell Mouse'
+---Procedure with multi sql statement : Atomic transactions
+delete from items where item_code='100100'
+
+alter PROCEDURE [dbo].[CreateItem] @group varchar(20),@Code varchar(20),@Description varchar(20), @qty int , @price int
+as
+	begin tran
+	begin try
+		insert into items(group_id,item_code,item_name,item_desc) values(@group,@Code,@Description, @Description)
+		insert into itemsbalance
+		(item_code,transactioncode,transactiontype,quantity,price,txndate)
+		values 
+		(@Code,@Code,1,@qty,@price,GETDATE())
+		commit tran
+	end try
+	begin catch
+		ROLLBACK TRAN
+	end catch
+
+;
+go
+
+execute [dbo].[CreateItem] '02','100100','Dell Mouse',5,10
+select * from items
+select * from vwitembalance
+
+--fail because item allready exists, without inserting record in the balance table
+execute [dbo].[CreateItem] '02','100100','Dell Mouse',5,10
+
+--Schema management
+
+create schema KB
+go
+create schema Stock
+go
+create schema Sales
+go
+
+
+
+ALTER SCHEMA KB TRANSFER dbo.itemgroup;  
+ALTER SCHEMA KB TRANSFER dbo.items; 
+ALTER SCHEMA KB TRANSFER dbo.vwItems 
+ALTER SCHEMA stock TRANSFER dbo.itemsbalance; 
+ALTER SCHEMA stock TRANSFER dbo.vwitembalanceSum
+ALTER SCHEMA stock TRANSFER dbo.vwItemsMovement 
+
+select * from dbo.itemgroup
+select * from kb.itemgroup
+go
+select * from kb.items
+go
+select * from stock.itemsbalance
+go
+select * from stock.vwItemsMovement 
+go
+select * from stock.vwitembalanceSum
+
+--getting database schemas
+select  TABLE_SCHEMA from INFORMATION_SCHEMA.TABLES
+--getting schema tables
+SELECT
+  	TABLE_SCHEMA,TABLE_NAME
+FROM
+  	INFORMATION_SCHEMA.TABLES
+order by 
+  	TABLE_SCHEMA,TABLE_NAME	
+
+--drop table Sales.Orders 
+Create table Sales.Orders (orderid int primary key,orderdate datetime )
+select * from Sales.Orders 
+
+
+drop table Sales.Orders
+
+
+--Sequence management
+--Creating Sequence in SQL Server
+--drop sequence Sales.OrderSeq 
+create sequence Sales.OrderSeq as int
+start with 1  -- Start with value 1
+	increment by 1-- Increment with value 1
+	minvalue 0 -- Minimum value to start is zero
+	maxvalue 1000000 -- Maximum it can go to 100, as constraint for your printouts
+	no cycle -- Do not go above 100
+go
+
+SELECT NEXT VALUE FOR Sales.OrderSeq AS seq_no;--will fail after 10
+go
+
+--drop sequence OrderSeq
+
+--Adding sequence as default value in table
+Alter table Sales.Orders add default (NEXT VALUE FOR Sales.OrderSeq) for [orderid]
+insert into Sales.Orders(orderdate) values(getdate())--once inserted, you move to next
+select * from Sales.Orders
+
+drop table Sales.Orders 
+Create table Sales.Orders (orderid int primary key default (NEXT VALUE FOR Sales.OrderSeq) ,orderdate datetime )
+
+insert into Sales.Orders(orderdate) values(getdate())--once inserted, you move to next
+select * from Sales.Orders
+
+--Reset sequence value to start with 100
+--Create table with sequence
+use ecomm
+go
+drop SEQUENCE myseq
+create SEQUENCE myseq
+    INCREMENT BY -1
+    MINVALUE 190  
+    MAXVALUE 200  
+     CYCLE 
+    NO CACHE;  
+
+SELECT NEXT VALUE FOR myseq AS seq_no;--will repeat the cycle afer 10 items
+
+drop SEQUENCE myseq
+
+
+--data dictionary
+SELECT * FROM sys.sequences --WHERE name = 'seq_no' ;  
+
+use ECOMM
+drop PROCEDURE [dbo].[GetSQLResults] 
+create PROCEDURE [dbo].[GetSQLResults] (@strTable varchar(30),@CodeField varchar(20), @strCode varchar(20))
+AS 
+
+DECLARE @strSQL nvarchar(500);
+DECLARE @ParmDefinition nvarchar(500);
+if @strCode is null
+	set @strSQL = 'SELECT * FROM ' + @strTable +' Order by ' + @CodeField ;
+else
+	set @strSQL = 'SELECT * FROM ' + @strTable + ' where ' + @CodeField +'= @strCode'   +' Order by ' + @CodeField ;
+
+SET @ParmDefinition = N'@strCode varchar(20)';
+EXECUTE sp_executesql @strSQL, @ParmDefinition,
+                      @strCode = @strCode;
+
+[dbo].[GetSQLResults] 'KB.ITEMGROUP','code','01'
+[dbo].[GetSQLResults] 'KB.ITEMGROUP','code',null
+[dbo].[GetSQLResults] 'KB.ITEMS','item_code','ITEM01'
+[dbo].[GetSQLResults] 'KB.ITEMS','item_code',null
+
+
