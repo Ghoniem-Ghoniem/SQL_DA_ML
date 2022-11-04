@@ -488,8 +488,8 @@ select * FROM itemsbalance
 --Building scaler function to get item balance in specific date?
 drop function dbo.GetItemBalance 
 go
-CREATE FUNCTION  
-dbo.GetItemBalance 
+create  FUNCTION  
+stock.GetItemBalance 
 (@ItemCode varchar(20), @TillDate datetime)
 RETURNS int
  with RETURNS NULL ON NULL INPUT 
@@ -497,7 +497,7 @@ RETURNS int
 begin
 	declare @ItemBalance int;
 
-	set @ItemBalance = (SELECT sum(quantity*transactiontype) FROM itemsbalance WHERE item_code = @ItemCode and txndate<=@TillDate);
+	set @ItemBalance = (SELECT sum(quantity*transactiontype) FROM stock.itemsbalance WHERE item_code = @ItemCode and txndate<=@TillDate);
 	RETURN (@ItemBalance);
 END;
 
@@ -729,5 +729,349 @@ EXECUTE sp_executesql @strSQL, @ParmDefinition,
 [dbo].[GetSQLResults] 'KB.ITEMGROUP','code',null
 [dbo].[GetSQLResults] 'KB.ITEMS','item_code','ITEM01'
 [dbo].[GetSQLResults] 'KB.ITEMS','item_code',null
+
+
+--drop table [dbo].[TXNLOG]
+CREATE TABLE [dbo].[TXNLOG](
+	[ID] [int] IDENTITY(1,1) NOT NULL,
+	[transaction_type] [varchar](20) NULL,
+	[ActionName] [varchar](20) NULL,
+	[Action_By] [varchar](20) NULL,
+	[action_date] [datetime] NULL default getdate(),
+	[Action_Details] [varchar](4000) NULL
+) 
+
+--drop SYNONYM logtable 
+select * from txnlog
+drop SYNONYM logtable 
+create SYNONYM logtable for txnlog--it will be moved to another database
+select * from logtable order by action_date desc
+insert into logtable values ('ITEMGROUPS','Read','Dbo',GETDATE(),'Testing')
+
+select * from logtable order by action_date desc
+
+drop synonym  logtable 
+create SYNONYM logtable for logdb..txnlog
+insert into logtable values ('ITEMGROUPS','Read','Dbo',GETDATE(),'Connection changed')
+
+select * from txnlog 
+select * from logdb..txnlog order by action_date desc
+
+
+--So: Using synonym can direct the business without changes in the main created obkects(Views, Functions, Procedures)
+use ecomm
+go
+ALTER TABLE stock.itemsbalance drop CONSTRAINT
+	CK_ITEMBAL_QTY 
+
+ALTER TABLE stock.itemsbalance ADD CONSTRAINT
+	CK_ITEMBAL_QTY CHECK (QUANTITY > 0)
+
+
+insert into stock.itemsbalance 
+(item_code,transactioncode,transactiontype,quantity,price)
+values 
+('ITEM02','TXN-1000-2022',1,-10,25)
+
+
+ALTER TABLE stock.itemsbalance drop CONSTRAINT
+	CK_ITEMBAL_QTY
+
+--drop table valiationRules 
+drop function dbo.CheckFunction 
+create function dbo.CheckFunction (@item varchar(20), @transactiontype int, @currentvalue int)
+RETURNS VARCHAR(10)
+As
+begin
+
+if @transactiontype = 1 
+return 'True'
+
+IF EXISTS(select 1 where  Stock.GetItemBalance(@item,getdate()) > @currentvalue)
+return'True'
+return'False'
+end
+
+SELECT * FROM Stock.itemsbalance
+SELECT Stock.GetItemBalance('ITEM01',GETDATE())
+select dbo.CheckFunction ('ITEM01',-1, 10)
+select dbo.CheckFunction ('ITEM01',-1, 20)
+
+ALTER TABLE stock.itemsbalance drop CONSTRAINT
+	CK_ITEMBAL_QTY 
+
+ALTER TABLE stock.itemsbalance 
+WITH NOCHECK
+ ADD CONSTRAINT
+	CK_ITEMBAL_QTY CHECK (dbo.CheckFunction (item_code,transactiontype, quantity) = 'True')
+
+
+select dbo.CheckFunction ('ITEM01',-1, 20)--failed
+select dbo.CheckFunction ('ITEM01',-1, 1)--succeeded
+select dbo.CheckFunction ('ITEM01',1, 1000)--succeeded
+
+insert into stock.itemsbalance 
+(item_code,transactioncode,transactiontype,quantity,price)
+values 
+('ITEM01','TXN-2000-2022',1,10,25)
+
+
+insert into stock.itemsbalance 
+(item_code,transactioncode,transactiontype,quantity,price)
+values 
+('ITEM01','TXN-2002-2022',-1,1,25) --succeeded
+
+insert into stock.itemsbalance 
+(item_code,transactioncode,transactiontype,quantity,price)
+values 
+('ITEM01','TXN-2005-2022',-1,10,25) --succeeded
+
+
+insert into stock.itemsbalance 
+(item_code,transactioncode,transactiontype,quantity,price)
+values 
+('ITEM01','TXN-2007-2022',-1,5,25) --succeeded
+
+
+SELECT Stock.GetItemBalance('ITEM01',GETDATE())
+
+
+-----------------------
+--Join Types
+
+use ecomm
+go
+--inner join : get only related items from both sides
+select *--mention all your required coumns  
+from kb.itemgroup 
+inner join kb.items
+on
+kb.itemgroup.code = kb.items.group_id --and ---and---
+
+select * from kb.itemgroup
+select * from kb.items
+
+
+--Left join : get all left side, and its related from the right
+select *  
+from kb.itemgroup 
+left join kb.items
+on
+kb.itemgroup.code = kb.items.group_id 
+
+--Right join : get all right side, and its related from the left
+select *  
+from Stock.itemsbalance 
+Right join kb.items
+on
+Stock.itemsbalance.item_code  = kb.items.item_code
+
+select * from kb.items
+
+
+--Full join : like orders without customers, and customers without orders
+select *  
+from Stock.itemsbalance full join kb.items
+on
+Stock.itemsbalance.item_code  = kb.items.item_code
+
+select * from kb.items
+
+
+---- Triggers
+
+use ecomm
+drop trigger kb.[Insert_Groups]
+
+create TRIGGER kb.[Insert_Groups] On kb.itemgroup
+AFTER INSERT 
+AS
+BEGIN
+INSERT INTO LOGDB..TXNLOG([transaction_type], [ActionName], [Action_By], [action_date], [Action_Details])
+SELECT 'ITEMGROUP','INSERT',USER_NAME(),GETDATE(),inserted.code + ' Added from trigger' from inserted 
+SET NOCOUNT off
+	
+END
+
+INSERT INTO kb.ITEMGROUP
+([code], [english_name], [Item_Details], [UnitOfMeasure], [ProductionDate])
+VALUES
+('101','Stationary NM','NM Stationary','PCS','12 Mar 2022')
+,('102','Stationary AN','AN Stationary','PCS','12 Mar 2022')
+
+delete from kb.itemgroup where code in ('100','101','102')
+select * from LOGDB..TXNLOG order by action_date desc
+
+drop TRIGGER kb.[update_Groups] 
+create TRIGGER kb.[update_Groups] On kb.itemgroup
+AFTER update 
+AS
+BEGIN
+if update(english_name)
+begin
+	INSERT INTO LOGDB..TXNLOG([transaction_type], [ActionName], [Action_By], [action_date], [Action_Details])
+	SELECT 'ITEMGROUP','INSERT',USER_NAME(),GETDATE(),deleted.english_name + ' Old Code Update from trigger' from deleted
+
+	INSERT INTO LOGDB..TXNLOG([transaction_type], [ActionName], [Action_By], [action_date], [Action_Details])
+	SELECT 'ITEMGROUP','INSERT',USER_NAME(),GETDATE(),inserted.english_name + ' New Code Update from trigger' from inserted 
+end
+END
+
+update kb.itemgroup set english_name = 'Stationary ANDALUS' where code = '102' 
+select * from LOGDB..TXNLOG order by action_date desc
+
+select * from kb.itemgroup
+
+
+drop TRIGGER kb.[Delete_Groups] 
+create TRIGGER kb.[Delete_Groups] On kb.itemgroup
+AFTER delete 
+AS
+BEGIN
+	INSERT INTO LOGDB..TXNLOG([transaction_type], [ActionName], [Action_By], [action_date], [Action_Details])
+	SELECT 'ITEMGROUP','INSERT',USER_NAME(),GETDATE(),deleted.code + ' Code deleted from trigger' from deleted
+END
+
+select * from kb.itemgroup 
+delete from kb.itemgroup where code ='102'
+select * from LOGDB..TXNLOG order by action_date desc
+
+
+
+
+
+
+
+--SQL injection
+use ECOMM
+
+create table users (userid int primary key,username varchar(20),userpassword varchar(20))
+insert into users values (1,'Ahmed','ABCD'),(2,'Yasser','YS01'),(3,'Mostafa','MO24')
+select * from users
+
+declare @strSQL nvarchar(500) = 'SELECT * FROM users WHERE userid ='
+declare @userid nvarchar(20) = '105' --I do not know the user
+set @strSQL = @strSQL + @userid 
+EXECUTE sp_executesql @strSQL
+
+--this will retrieve the data
+declare @strSQL nvarchar(500) = 'SELECT * FROM users WHERE userid = '
+declare @userid nvarchar(20) = ' 5656556565 or 1=1' --wil be entered from the login screen
+set @strSQL = @strSQL + @userid 
+EXECUTE sp_executesql @strSQL
+
+
+--this will retrieve the data
+declare @strSQL nvarchar(500) = 'SELECT * FROM users WHERE userid ='
+declare @userid nvarchar(100) = ' 105 or 1=1; SELECT * from sys.databases'
+set @strSQL = @strSQL + @userid 
+EXECUTE sp_executesql @strSQL
+
+--CREATE DATABASE EMPLOYEESDB
+
+--this will retrieve the data
+declare @strSQL nvarchar(500) = 'SELECT * FROM users WHERE username ='
+declare @userid nvarchar(100) =' 105 or 1=1; DROP database EMPLOYEESDB'
+--set @userid = REPLACE(@userid,'DROP','')
+--set @userid = REPLACE(@userid,lower(' or '),'')
+set @strSQL = @strSQL + @userid 
+EXECUTE sp_executesql @strSQL
+
+
+-------------------------------------------------
+--Solutions
+-------------------------------------------------
+
+--01- Moving forward to parametrized query
+use ecomm
+declare @strSQL nvarchar(500) = 'SELECT * FROM users WHERE username = @strCode'
+declare @userid nvarchar(100) ='Ahmed; DROP database EMPLOYEESDB'
+--set @userid = REPLACE(@userid,'DROP','')
+--set @userid = REPLACE(@userid,lower(' or '),'')
+declare @ParmDefinition nvarchar(50) = N'@strCode varchar(50)';
+
+EXECUTE sp_executesql @strSQL, @ParmDefinition,
+							@strCode = @userid;
+
+
+--02- Parameterized Stored Procedure
+drop procedure ValidateUser 
+create procedure ValidateUser @username varchar(100)
+as
+	SELECT * FROM users WHERE username = @username
+--declare @userid nvarchar(100) ='Ahmed or 1=1; DROP database EMPLOYEESDB'
+
+ValidateUser 'Ahmed or 1=1; select * from users'
+ValidateUser 'Ahmed' 
+
+select * from users
+--How to resolve it?
+1- Minimal grants
+2- Parsing content
+3- FE validation for data types / lengthh
+4- Database parsing
+ 
+
+
+
+
+
+ --Sensitve data exposure
+
+ CREATE MASTER KEY ENCRYPTION BY PASSWORD = 'OWASP@123';
+go
+SELECT name KeyName, 
+    key_length KeyLength, 
+    algorithm_desc KeyAlgorithm
+FROM sys.symmetric_keys;
+
+go
+
+
+CREATE CERTIFICATE OWASP 
+WITH SUBJECT = 'Column Level Encryption for SQL Availability Group';
+GO
+
+SELECT *
+FROM sys.certificates;
+
+CREATE SYMMETRIC KEY OWASP_ColumnEncryption
+WITH ALGORITHM = AES_256 ENCRYPTION BY CERTIFICATE OWASP;
+
+SELECT *
+FROM sys.symmetric_keys;
+
+
+ALTER TABLE USERS
+ADD pwd_Encrypt varbinary(MAX)
+
+OPEN SYMMETRIC KEY OWASP_ColumnEncryption
+DECRYPTION BY CERTIFICATE OWASP;
+
+
+UPDATE USERS
+SET pwd_Encrypt  = EncryptByKey (Key_GUID('OWASP_ColumnEncryption'), userpassword )
+FROM USERS;
+
+CLOSE SYMMETRIC KEY OWASP_ColumnEncryption;
+
+
+select * from users
+
+OPEN SYMMETRIC KEY OWASP_ColumnEncryption
+DECRYPTION BY CERTIFICATE OWASP;
+SELECT *,CONVERT(varchar,DecryptByKey(pwd_encrypt)) AS 'Decrypted Bank account number'
+           FROM users;
+
+
+
+
+
+
+
+
+
+
+
 
 

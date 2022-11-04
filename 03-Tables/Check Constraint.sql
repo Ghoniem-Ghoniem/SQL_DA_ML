@@ -1,12 +1,11 @@
-Adding Check Constraint
-
+--Adding Check Constraint
 ALTER TABLE dbo.Employee ADD CONSTRAINT
 	CK_Employee_Gender CHECK (Gender IN('M','F'))
 
 1.	Creating SQL check constraint from another table
 
 The value for this model is to create dynamic check validator for all your enum lookup fields, like gender
-Create functiondbo.CheckFunction(@Valuevarchar(50))
+Create function dbo.CheckFunction(@Value varchar(50))
 RETURNS VARCHAR(10)
 As
 begin
